@@ -1,7 +1,7 @@
 """Tests for Django template tags."""
 
 import pytest
-from django.template import Template, Context
+from django.template import Context, Template
 
 
 @pytest.fixture
@@ -92,22 +92,22 @@ class TestIconExistsTag:
 
     def test_exists(self, registry_with_icons):
         """Should return True for existing icon."""
-        template = Template('''
+        template = Template("""
             {% load djicons %}
             {% icon_exists "ion:home" as exists %}
             {% if exists %}found{% endif %}
-        ''')
+        """)
         html = template.render(Context({}))
 
         assert "found" in html
 
     def test_not_exists(self, fresh_registry):
         """Should return False for missing icon."""
-        template = Template('''
+        template = Template("""
             {% load djicons %}
             {% icon_exists "nonexistent" as exists %}
             {% if not exists %}not found{% endif %}
-        ''')
+        """)
         html = template.render(Context({}))
 
         assert "not found" in html
@@ -119,11 +119,11 @@ class TestIconListTag:
 
     def test_list_namespace(self, registry_with_icons):
         """Should list icons in namespace."""
-        template = Template('''
+        template = Template("""
             {% load djicons %}
             {% icon_list "ion" as icons %}
             {% for name in icons %}{{ name }},{% endfor %}
-        ''')
+        """)
         html = template.render(Context({}))
 
         assert "home" in html

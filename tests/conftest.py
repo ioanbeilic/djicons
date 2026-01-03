@@ -1,25 +1,25 @@
 """Pytest configuration and fixtures."""
 
-import pytest
-from pathlib import Path
 import tempfile
-import shutil
+from pathlib import Path
+
+import pytest
 
 
 @pytest.fixture
 def sample_svg() -> str:
     """Sample SVG content for testing."""
-    return '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
   <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-</svg>'''
+</svg>"""
 
 
 @pytest.fixture
 def sample_svg_with_class() -> str:
     """Sample SVG with existing class."""
-    return '''<svg xmlns="http://www.w3.org/2000/svg" class="existing-class" viewBox="0 0 24 24">
+    return """<svg xmlns="http://www.w3.org/2000/svg" class="existing-class" viewBox="0 0 24 24">
   <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-</svg>'''
+</svg>"""
 
 
 @pytest.fixture

@@ -12,7 +12,6 @@ Usage:
     icon = icons.get("myapp:home")  # Loads /path/to/icons/home.svg
 """
 
-from functools import lru_cache
 from pathlib import Path
 
 from .base import BaseIconLoader
@@ -54,8 +53,8 @@ class DirectoryIconLoader(BaseIconLoader):
         self.extension = extension
         self.recursive = recursive
         self._cache: dict[str, str] = {}
+        self._scanned: dict[str, Path] | None = None
 
-    @lru_cache(maxsize=1)
     def _scan_directory(self) -> dict[str, Path]:
         """
         Scan directory and build name -> path mapping.
@@ -63,9 +62,14 @@ class DirectoryIconLoader(BaseIconLoader):
         Returns:
             Dictionary mapping icon names to file paths
         """
+        # Use instance-level cache instead of lru_cache to avoid memory leaks
+        if self._scanned is not None:
+            return self._scanned
+
         icons: dict[str, Path] = {}
 
         if not self.directory.exists():
+            self._scanned = icons
             return icons
 
         pattern = f"**/*{self.extension}" if self.recursive else f"*{self.extension}"
@@ -75,6 +79,7 @@ class DirectoryIconLoader(BaseIconLoader):
                 name = path.stem  # filename without extension
                 icons[name] = path
 
+        self._scanned = icons
         return icons
 
     def load(self, name: str) -> str | None:
@@ -115,7 +120,7 @@ class DirectoryIconLoader(BaseIconLoader):
     def clear_cache(self) -> None:
         """Clear the internal cache."""
         self._cache.clear()
-        self._scan_directory.cache_clear()
+        self._scanned = None
 
     def __repr__(self) -> str:
         """Debug representation."""

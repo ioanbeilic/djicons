@@ -16,8 +16,6 @@ Requirements:
 
 import argparse
 import asyncio
-import json
-import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -26,7 +24,7 @@ try:
     import httpx
 except ImportError:
     print("Please install httpx: pip install httpx")
-    raise SystemExit(1)
+    raise SystemExit(1) from None
 
 # Base directory for packs
 PACKS_DIR = Path(__file__).parent.parent / "src" / "djicons" / "packs"
@@ -278,7 +276,7 @@ Examples:
 
     print("\nDone! Icon packs have been installed.")
     print("You can now use them in your Django templates:")
-    print('  {% load djicons %}')
+    print("  {% load djicons %}")
     print('  {% icon "ion:home" %}')
 
 

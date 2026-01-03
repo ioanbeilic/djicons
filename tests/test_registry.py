@@ -1,8 +1,7 @@
 """Tests for IconRegistry."""
 
-import pytest
-from djicons.registry import IconRegistry, icons
 from djicons.icon import Icon
+from djicons.registry import IconRegistry
 
 
 class TestIconRegistry:

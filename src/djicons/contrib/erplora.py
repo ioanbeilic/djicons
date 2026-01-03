@@ -186,8 +186,8 @@ def setup_erplora_icons(
         modules_dir: Path to ERPlora modules directory
         ionicons_dir: Path to Ionicons SVG directory (optional)
     """
-    from ..registry import icons
     from ..loaders import DirectoryIconLoader
+    from ..registry import icons
 
     # Register Ionicons if path provided
     if ionicons_dir:

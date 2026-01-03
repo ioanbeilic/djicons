@@ -35,6 +35,7 @@ register = template.Library()
 def _get_registry():
     """Get the current icon registry instance."""
     from ..registry import IconRegistry
+
     return IconRegistry()
 
 
