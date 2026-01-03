@@ -21,7 +21,7 @@ Usage:
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .icon import Icon
@@ -49,10 +49,10 @@ class IconRegistry:
     - Thread-safe access
     """
 
-    _instance: Optional["IconRegistry"] = None
+    _instance: IconRegistry | None = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> "IconRegistry":
+    def __new__(cls) -> IconRegistry:
         """Create singleton instance."""
         if cls._instance is None:
             with cls._lock:
@@ -64,8 +64,8 @@ class IconRegistry:
 
     def _initialize(self) -> None:
         """Initialize registry state."""
-        self._icons: dict[str, dict[str, "Icon"]] = {}  # namespace -> {name: Icon}
-        self._loaders: dict[str, "BaseIconLoader"] = {}  # namespace -> loader
+        self._icons: dict[str, dict[str, Icon]] = {}  # namespace -> {name: Icon}
+        self._loaders: dict[str, BaseIconLoader] = {}  # namespace -> loader
         self._aliases: dict[str, str] = {}  # alias -> "namespace:name"
         self._default_namespace: str = ""
 
@@ -85,7 +85,7 @@ class IconRegistry:
         svg_content: str,
         namespace: str = "",
         **metadata: str | list[str],
-    ) -> "Icon":
+    ) -> Icon:
         """
         Register an icon with optional metadata.
 
@@ -112,7 +112,7 @@ class IconRegistry:
         self._icons[namespace][name] = icon
         return icon
 
-    def register_loader(self, loader: "BaseIconLoader", namespace: str = "") -> None:
+    def register_loader(self, loader: BaseIconLoader, namespace: str = "") -> None:
         """
         Register a loader for lazy-loading icons in a namespace.
 
@@ -146,8 +146,8 @@ class IconRegistry:
     def get(
         self,
         name: str,
-        namespace: Optional[str] = None,
-    ) -> Optional["Icon"]:
+        namespace: str | None = None,
+    ) -> Icon | None:
         """
         Get an icon by name.
 
@@ -191,7 +191,7 @@ class IconRegistry:
         # Not found
         return None
 
-    def has(self, name: str, namespace: Optional[str] = None) -> bool:
+    def has(self, name: str, namespace: str | None = None) -> bool:
         """
         Check if an icon exists.
 
@@ -204,7 +204,7 @@ class IconRegistry:
         """
         return self.get(name, namespace) is not None
 
-    def list_icons(self, namespace: Optional[str] = None) -> list[str]:
+    def list_icons(self, namespace: str | None = None) -> list[str]:
         """
         List all registered icons, optionally filtered by namespace.
 
@@ -232,7 +232,7 @@ class IconRegistry:
         """
         return sorted(set(self._icons.keys()) | set(self._loaders.keys()))
 
-    def clear(self, namespace: Optional[str] = None) -> None:
+    def clear(self, namespace: str | None = None) -> None:
         """
         Clear registered icons.
 

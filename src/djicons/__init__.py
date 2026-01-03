@@ -40,11 +40,11 @@ __email__ = "ioanbeilic@gmail.com"
 
 # Core classes
 from .icon import Icon
-from .registry import IconRegistry, icons
 
 # Loaders
 from .loaders.base import BaseIconLoader
 from .loaders.directory import DirectoryIconLoader
+from .registry import IconRegistry, icons
 
 __all__ = [
     # Version

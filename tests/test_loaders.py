@@ -1,8 +1,8 @@
 """Tests for icon loaders."""
 
 import pytest
-from pathlib import Path
-from djicons.loaders import DirectoryIconLoader, BaseIconLoader
+
+from djicons.loaders import BaseIconLoader, DirectoryIconLoader
 
 
 class TestDirectoryIconLoader:

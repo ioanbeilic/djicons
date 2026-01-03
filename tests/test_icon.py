@@ -1,6 +1,5 @@
 """Tests for Icon class."""
 
-import pytest
 from djicons.icon import Icon
 
 
