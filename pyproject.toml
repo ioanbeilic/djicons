@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "djicons"
-version = "0.1.0"
+version = "0.2.1"
 description = "Multi-library SVG icon system for Django - like react-icons, but backend-driven"
 readme = "README.md"
 license = "MIT"

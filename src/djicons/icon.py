@@ -118,7 +118,14 @@ class Icon:
 
         tag_attrs = svg_match.group(1)
 
-        # Handle size
+        # Handle size - use default if not specified
+        if size is None and width is None and height is None:
+            from .conf import get_setting
+
+            default_size = get_setting("DEFAULT_SIZE")
+            if default_size:
+                size = default_size
+
         if size is not None:
             width = width or size
             height = height or size
@@ -131,7 +138,13 @@ class Icon:
             tag_attrs = self._HEIGHT_PATTERN.sub("", tag_attrs)
             tag_attrs = f'{tag_attrs} height="{height}"'
 
-        # Handle CSS class
+        # Handle CSS class - add default class if configured
+        from .conf import get_setting
+
+        default_class = get_setting("DEFAULT_CLASS")
+        if default_class:
+            css_class = f"{default_class} {css_class}".strip() if css_class else default_class
+
         if css_class:
             class_match = self._CLASS_PATTERN.search(tag_attrs)
             if class_match:
