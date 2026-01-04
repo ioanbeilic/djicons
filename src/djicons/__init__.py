@@ -34,7 +34,7 @@ Supported Icon Packs:
     - lucide: Lucide Icons (~1000 icons)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Ioan Beilic"
 __email__ = "ioanbeilic@gmail.com"
 
