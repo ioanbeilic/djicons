@@ -112,6 +112,13 @@ DJICONS = {
     # Icon packs to load
     'PACKS': ['ionicons', 'heroicons', 'material', 'tabler', 'lucide', 'fontawesome'],
 
+    # Custom icon directories by namespace (loaded before packs)
+    # Useful for loading icons from your project's static directory
+    'ICON_DIRS': {
+        'ion': BASE_DIR / 'static' / 'ionicons' / 'dist' / 'svg',
+        'custom': BASE_DIR / 'static' / 'icons',
+    },
+
     # Return empty string for missing icons (vs raising error)
     'MISSING_ICON_SILENT': True,
 
@@ -138,6 +145,27 @@ DJICONS = {
     },
 }
 ```
+
+### Custom Icon Directories
+
+Use `ICON_DIRS` to load icons from your project's static directory instead of the bundled packs:
+
+```python
+from pathlib import Path
+
+DJICONS = {
+    'ICON_DIRS': {
+        # Load ionicons from your static folder
+        'ion': BASE_DIR / 'static' / 'ionicons' / 'dist' / 'svg',
+        # Add your own custom icons
+        'app': BASE_DIR / 'static' / 'icons',
+    },
+    # Disable bundled packs if you don't need them
+    'PACKS': [],
+}
+```
+
+Icons in `ICON_DIRS` take priority over bundled packs, so you can override specific icons.
 
 ## Programmatic Usage
 

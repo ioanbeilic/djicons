@@ -33,6 +33,9 @@ DEFAULTS: dict[str, Any] = {
         "lucide",
         "fontawesome",
     ],
+    # Custom icon directories by namespace
+    # Example: {"ion": "/path/to/ionicons/svg", "custom": "/app/static/icons"}
+    "ICON_DIRS": {},
     # Aliases for common icons (alias -> "namespace:name")
     "ALIASES": {},
 }
