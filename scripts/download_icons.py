@@ -98,7 +98,8 @@ def transform_material(name: str, style: str = "") -> str:
     """Transform Material Icons filename (remove _24px suffix, underscores to dashes)."""
     # Remove size suffix like _24px, _20px, etc.
     import re
-    name = re.sub(r'_\d+px$', '', name)
+
+    name = re.sub(r"_\d+px$", "", name)
     return name.replace("_", "-")
 
 
@@ -137,6 +138,7 @@ async def download_file(client: httpx.AsyncClient, url: str, dest: Path) -> None
 def match_pattern(name: str, pattern: str) -> bool:
     """Match a path against a pattern with wildcards."""
     import fnmatch
+
     return fnmatch.fnmatch(name, pattern)
 
 

@@ -12,92 +12,94 @@ Usage:
 
 import logging
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from djicons.conf import get_setting
 from djicons.loaders.cdn import CDN_TEMPLATES
-from djicons.scanner import scan_templates, group_icons_by_namespace
+from djicons.scanner import group_icons_by_namespace, scan_templates
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Collect used icons from templates and download them locally'
+    help = "Collect used icons from templates and download them locally"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--output', '-o',
+            "--output",
+            "-o",
             type=str,
             help='Output directory for collected icons (default: DJICONS["COLLECT_DIR"])',
         )
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be downloaded without actually downloading',
+            "--dry-run",
+            action="store_true",
+            help="Show what would be downloaded without actually downloading",
         )
         parser.add_argument(
-            '--timeout',
+            "--timeout",
             type=float,
             default=10.0,
-            help='HTTP timeout for downloading icons (default: 10 seconds)',
+            help="HTTP timeout for downloading icons (default: 10 seconds)",
         )
         parser.add_argument(
-            '--verbose', '-v',
-            action='store_true',
-            help='Show detailed output',
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show detailed output",
         )
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
-        verbose = options['verbose']
-        timeout = options['timeout']
+        dry_run = options["dry_run"]
+        verbose = options["verbose"]
+        timeout = options["timeout"]
 
         # Determine output directory
-        output_dir = options['output']
+        output_dir = options["output"]
         if not output_dir:
-            output_dir = get_setting('COLLECT_DIR')
+            output_dir = get_setting("COLLECT_DIR")
         if not output_dir:
-            output_dir = Path(settings.BASE_DIR) / 'static' / 'icons'
+            output_dir = Path(settings.BASE_DIR) / "static" / "icons"
 
         output_path = Path(output_dir)
 
-        self.stdout.write(self.style.MIGRATE_HEADING('Scanning templates for icon usages...'))
+        self.stdout.write(self.style.MIGRATE_HEADING("Scanning templates for icon usages..."))
 
         # Scan templates
         icons = scan_templates()
 
         if not icons:
-            self.stdout.write(self.style.WARNING('No icons found in templates.'))
+            self.stdout.write(self.style.WARNING("No icons found in templates."))
             return
 
-        self.stdout.write(f'Found {len(icons)} unique icons in templates.')
+        self.stdout.write(f"Found {len(icons)} unique icons in templates.")
 
         # Group by namespace
-        default_namespace = get_setting('DEFAULT_NAMESPACE') or 'ion'
+        default_namespace = get_setting("DEFAULT_NAMESPACE") or "ion"
         grouped = group_icons_by_namespace(icons, default_namespace)
 
         if verbose:
             for namespace, names in sorted(grouped.items()):
-                self.stdout.write(f'  {namespace}: {len(names)} icons')
+                self.stdout.write(f"  {namespace}: {len(names)} icons")
 
         if dry_run:
-            self.stdout.write(self.style.WARNING('\nDry run - no icons downloaded.'))
-            self.stdout.write('\nIcons that would be downloaded:')
+            self.stdout.write(self.style.WARNING("\nDry run - no icons downloaded."))
+            self.stdout.write("\nIcons that would be downloaded:")
             for namespace, names in sorted(grouped.items()):
-                self.stdout.write(f'\n{namespace}:')
+                self.stdout.write(f"\n{namespace}:")
                 for name in sorted(names):
-                    self.stdout.write(f'  - {name}')
+                    self.stdout.write(f"  - {name}")
             return
 
         # Create output directory
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Download icons
-        self.stdout.write(self.style.MIGRATE_HEADING('\nDownloading icons...'))
+        self.stdout.write(self.style.MIGRATE_HEADING("\nDownloading icons..."))
 
         total_downloaded = 0
         total_failed = 0
@@ -113,15 +115,15 @@ class Command(BaseCommand):
                 )
                 continue
 
-            self.stdout.write(f'\n{namespace}: {len(names)} icons')
+            self.stdout.write(f"\n{namespace}: {len(names)} icons")
 
             for name in sorted(names):
-                svg_path = namespace_dir / f'{name}.svg'
+                svg_path = namespace_dir / f"{name}.svg"
 
                 # Skip if already exists
                 if svg_path.exists():
                     if verbose:
-                        self.stdout.write(f'  [EXISTS] {name}')
+                        self.stdout.write(f"  [EXISTS] {name}")
                     total_downloaded += 1
                     continue
 
@@ -129,34 +131,34 @@ class Command(BaseCommand):
                 url = cdn_url.format(name=name)
                 try:
                     with urlopen(url, timeout=timeout) as response:
-                        content = response.read().decode('utf-8')
+                        content = response.read().decode("utf-8")
                         svg_path.write_text(content)
                         total_downloaded += 1
                         if verbose:
-                            self.stdout.write(self.style.SUCCESS(f'  [OK] {name}'))
+                            self.stdout.write(self.style.SUCCESS(f"  [OK] {name}"))
                 except HTTPError as e:
                     total_failed += 1
                     if e.code == 404:
-                        self.stdout.write(self.style.ERROR(f'  [NOT FOUND] {name}'))
+                        self.stdout.write(self.style.ERROR(f"  [NOT FOUND] {name}"))
                     else:
-                        self.stdout.write(self.style.ERROR(f'  [HTTP {e.code}] {name}'))
+                        self.stdout.write(self.style.ERROR(f"  [HTTP {e.code}] {name}"))
                 except URLError as e:
                     total_failed += 1
-                    self.stdout.write(self.style.ERROR(f'  [NETWORK ERROR] {name}: {e.reason}'))
+                    self.stdout.write(self.style.ERROR(f"  [NETWORK ERROR] {name}: {e.reason}"))
                 except Exception as e:
                     total_failed += 1
-                    self.stdout.write(self.style.ERROR(f'  [ERROR] {name}: {e}'))
+                    self.stdout.write(self.style.ERROR(f"  [ERROR] {name}: {e}"))
 
         # Summary
-        self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS(f'Downloaded: {total_downloaded} icons'))
+        self.stdout.write("")
+        self.stdout.write(self.style.SUCCESS(f"Downloaded: {total_downloaded} icons"))
         if total_failed:
-            self.stdout.write(self.style.ERROR(f'Failed: {total_failed} icons'))
-        self.stdout.write(f'Output: {output_path}')
+            self.stdout.write(self.style.ERROR(f"Failed: {total_failed} icons"))
+        self.stdout.write(f"Output: {output_path}")
 
         # Hint about configuration
-        self.stdout.write('')
-        self.stdout.write(self.style.MIGRATE_HEADING('Next steps:'))
+        self.stdout.write("")
+        self.stdout.write(self.style.MIGRATE_HEADING("Next steps:"))
         self.stdout.write(f'''
 Add to your settings.py for production:
 

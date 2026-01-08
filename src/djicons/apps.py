@@ -4,7 +4,6 @@ from pathlib import Path
 
 from django.apps import AppConfig
 
-
 # Mapping from pack names to namespaces
 PACK_NAMESPACES = {
     "ionicons": "ion",

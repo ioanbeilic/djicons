@@ -3,14 +3,12 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from djicons.scanner import (
-    scan_file,
-    scan_directory,
-    parse_icon_name,
-    group_icons_by_namespace,
     ICON_PATTERN,
+    group_icons_by_namespace,
+    parse_icon_name,
+    scan_directory,
+    scan_file,
 )
 
 
@@ -43,11 +41,11 @@ class TestIconPattern:
 
     def test_matches_multiple_icons(self):
         """Test pattern finds multiple icons in content."""
-        content = '''
+        content = """
         {% icon "home" %}
         {% icon "cart-outline" %}
         {% icon "hero:pencil" %}
-        '''
+        """
         matches = ICON_PATTERN.findall(content)
         assert set(matches) == {"home", "cart-outline", "hero:pencil"}
 
@@ -57,11 +55,11 @@ class TestScanFile:
 
     def test_scan_file_with_icons(self):
         """Test scanning a file with icon usages."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
-            f.write('''
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+            f.write("""
             <div>{% icon "home" %}</div>
             <span>{% icon "cart" %}</span>
-            ''')
+            """)
             f.flush()
 
             icons = scan_file(Path(f.name))
@@ -69,8 +67,8 @@ class TestScanFile:
 
     def test_scan_file_empty(self):
         """Test scanning a file with no icons."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
-            f.write('<div>No icons here</div>')
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+            f.write("<div>No icons here</div>")
             f.flush()
 
             icons = scan_file(Path(f.name))
@@ -96,7 +94,7 @@ class TestScanDirectory:
             (tmppath / "ignore.txt").write_text('{% icon "ignored" %}')
 
             # Scan only .html files
-            icons = scan_directory(tmppath, extensions=('.html',))
+            icons = scan_directory(tmppath, extensions=(".html",))
             assert icons == {"home", "cart"}
 
     def test_scan_directory_recursive(self):

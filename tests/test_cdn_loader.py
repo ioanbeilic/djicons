@@ -1,9 +1,10 @@
 """Tests for CDN icon loader."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from djicons.loaders.cdn import CDNIconLoader, CDN_TEMPLATES
+import pytest
+
+from djicons.loaders.cdn import CDN_TEMPLATES, CDNIconLoader
 
 
 class TestCDNIconLoader:
@@ -53,7 +54,9 @@ class TestCDNIconLoader:
 
         from urllib.error import HTTPError
 
-        with patch("djicons.loaders.cdn.urlopen", side_effect=HTTPError(None, 404, "Not Found", {}, None)):
+        with patch(
+            "djicons.loaders.cdn.urlopen", side_effect=HTTPError(None, 404, "Not Found", {}, None)
+        ):
             result = loader.load("nonexistent")
             assert result is None
             assert "nonexistent" in loader._failed

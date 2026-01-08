@@ -19,8 +19,8 @@ Usage:
 """
 
 import logging
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
 
 from .base import BaseIconLoader
 

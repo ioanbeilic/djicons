@@ -10,13 +10,9 @@ from pathlib import Path
 
 from django.conf import settings
 
-
 # Regex patterns to match icon template tags
 # Matches: {% icon "name" %}, {% icon 'name' %}, {% icon "ns:name" %}
-ICON_PATTERN = re.compile(
-    r'{%\s*icon\s+["\']([^"\']+)["\']',
-    re.MULTILINE
-)
+ICON_PATTERN = re.compile(r'{%\s*icon\s+["\']([^"\']+)["\']', re.MULTILINE)
 
 
 def get_template_dirs() -> list[Path]:
@@ -29,22 +25,22 @@ def get_template_dirs() -> list[Path]:
     template_dirs: list[Path] = []
 
     # Get from TEMPLATES setting
-    templates_config = getattr(settings, 'TEMPLATES', [])
+    templates_config = getattr(settings, "TEMPLATES", [])
     for config in templates_config:
         # DIRS from each template backend
-        for dir_path in config.get('DIRS', []):
+        for dir_path in config.get("DIRS", []):
             path = Path(dir_path)
             if path.exists():
                 template_dirs.append(path)
 
         # APP_DIRS: scan each installed app's templates folder
-        if config.get('APP_DIRS', False):
+        if config.get("APP_DIRS", False):
             for app in settings.INSTALLED_APPS:
                 try:
                     # Get app path
-                    module = __import__(app, fromlist=[''])
+                    module = __import__(app, fromlist=[""])
                     app_path = Path(module.__file__).parent
-                    templates_path = app_path / 'templates'
+                    templates_path = app_path / "templates"
                     if templates_path.exists():
                         template_dirs.append(templates_path)
                 except (ImportError, AttributeError):
@@ -66,7 +62,7 @@ def scan_file(file_path: Path) -> set[str]:
     icons = set()
 
     try:
-        content = file_path.read_text(encoding='utf-8')
+        content = file_path.read_text(encoding="utf-8")
         matches = ICON_PATTERN.findall(content)
         icons.update(matches)
     except (OSError, UnicodeDecodeError):
@@ -75,7 +71,7 @@ def scan_file(file_path: Path) -> set[str]:
     return icons
 
 
-def scan_directory(directory: Path, extensions: tuple[str, ...] = ('.html', '.txt')) -> set[str]:
+def scan_directory(directory: Path, extensions: tuple[str, ...] = (".html", ".txt")) -> set[str]:
     """
     Scan a directory recursively for icon usages in templates.
 
@@ -89,7 +85,7 @@ def scan_directory(directory: Path, extensions: tuple[str, ...] = ('.html', '.tx
     icons = set()
 
     for ext in extensions:
-        for file_path in directory.rglob(f'*{ext}'):
+        for file_path in directory.rglob(f"*{ext}"):
             icons.update(scan_file(file_path))
 
     return icons
@@ -110,7 +106,7 @@ def scan_templates() -> set[str]:
     return icons
 
 
-def parse_icon_name(name: str, default_namespace: str = 'ion') -> tuple[str, str]:
+def parse_icon_name(name: str, default_namespace: str = "ion") -> tuple[str, str]:
     """
     Parse an icon name into namespace and name.
 
@@ -121,13 +117,15 @@ def parse_icon_name(name: str, default_namespace: str = 'ion') -> tuple[str, str
     Returns:
         Tuple of (namespace, icon_name)
     """
-    if ':' in name:
-        namespace, icon_name = name.split(':', 1)
+    if ":" in name:
+        namespace, icon_name = name.split(":", 1)
         return namespace, icon_name
     return default_namespace, name
 
 
-def group_icons_by_namespace(icons: set[str], default_namespace: str = 'ion') -> dict[str, set[str]]:
+def group_icons_by_namespace(
+    icons: set[str], default_namespace: str = "ion"
+) -> dict[str, set[str]]:
     """
     Group icon names by namespace.
 
