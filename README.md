@@ -2,17 +2,17 @@
 
 Multi-library SVG icon system for Django. Like [react-icons](https://react-icons.github.io/react-icons/), but 100% backend-driven.
 
-**No CDN. No JavaScript. Offline-first.**
+**Zero-config development. Minimal production builds.**
 
 ## Features
 
 - **Multi-library support**: Ionicons, Heroicons, Material Symbols, Tabler, Lucide, Font Awesome
-- **SVG inline rendering**: Full CSS control, no font loading, no HTTP requests
+- **CDN mode for development**: Access all ~177,000 icons without downloading anything
+- **Smart collection for production**: Only download the icons you actually use
+- **SVG inline rendering**: Full CSS control, no font loading
 - **Namespace system**: `{% icon "ion:home" %}`, `{% icon "hero:pencil" %}`
 - **LRU caching**: Fast rendering with memory + optional Django cache
-- **Plugin system**: Easy to add custom icon packs
 - **Django 4.2+ & 5.x**: Fully compatible with modern Django
-- **100% offline**: All icons bundled, no external dependencies
 
 ## Installation
 
@@ -29,13 +29,21 @@ INSTALLED_APPS = [
 ]
 ```
 
-Download icon packs:
+**That's it!** Start using icons immediately - no download required in development.
+
+## How It Works
+
+### Development (default)
+Icons are fetched from CDN on demand. Zero setup, access to all ~177,000 icons.
+
+### Production
+Run `djicons_collect` to download only the icons used in your templates:
 
 ```bash
-python -m djicons.scripts.download_icons
-# Or download specific packs:
-python -m djicons.scripts.download_icons ionicons heroicons
+python manage.py djicons_collect
 ```
+
+This scans your templates, finds all `{% icon %}` usages, and downloads only those icons (~KBs instead of ~700MB).
 
 ## Quick Start
 
@@ -102,37 +110,54 @@ Font Awesome icons come in three styles:
 
 ## Configuration
 
-```python
-# settings.py
+### Development (CDN mode - default)
 
+```python
+# settings.py - Development
 DJICONS = {
+    'MODE': 'cdn',  # Fetch from CDN (default)
+}
+```
+
+### Production (Local mode)
+
+```python
+# settings.py - Production
+DJICONS = {
+    'MODE': 'local',
+    'COLLECT_DIR': BASE_DIR / 'static' / 'icons',  # Where collected icons are stored
+}
+```
+
+### Full Configuration Options
+
+```python
+DJICONS = {
+    # Mode: 'cdn' (development) or 'local' (production)
+    'MODE': 'cdn',
+
     # Default namespace for unqualified names
     'DEFAULT_NAMESPACE': 'ion',
 
-    # Icon packs to load
+    # Directory for collected icons (production)
+    'COLLECT_DIR': BASE_DIR / 'static' / 'icons',
+
+    # Icon packs to enable
     'PACKS': ['ionicons', 'heroicons', 'material', 'tabler', 'lucide', 'fontawesome'],
 
-    # Custom icon directories by namespace (loaded before packs)
-    # Useful for loading icons from your project's static directory
+    # Custom icon directories by namespace
     'ICON_DIRS': {
-        'ion': BASE_DIR / 'static' / 'ionicons' / 'dist' / 'svg',
-        'custom': BASE_DIR / 'static' / 'icons',
+        'custom': BASE_DIR / 'static' / 'my-icons',
     },
 
     # Return empty string for missing icons (vs raising error)
     'MISSING_ICON_SILENT': True,
 
-    # Use Django cache backend
-    'USE_DJANGO_CACHE': False,
-
-    # Cache timeout in seconds
-    'CACHE_TIMEOUT': 86400,
-
-    # Max icons in memory cache
-    'MEMORY_CACHE_SIZE': 1000,
-
     # Default CSS class for all icons
     'DEFAULT_CLASS': '',
+
+    # Default icon size
+    'DEFAULT_SIZE': None,
 
     # Add aria-hidden by default
     'ARIA_HIDDEN': True,
@@ -146,9 +171,27 @@ DJICONS = {
 }
 ```
 
+## Collecting Icons for Production
+
+The `djicons_collect` command scans your templates and downloads only the icons you use:
+
+```bash
+# Scan templates and download used icons
+python manage.py djicons_collect
+
+# Specify custom output directory
+python manage.py djicons_collect --output ./static/icons
+
+# Preview what would be downloaded (dry run)
+python manage.py djicons_collect --dry-run
+
+# Verbose output
+python manage.py djicons_collect -v
+```
+
 ### Custom Icon Directories
 
-Use `ICON_DIRS` to load icons from your project's static directory instead of the bundled packs:
+Use `ICON_DIRS` to load icons from your project's static directory:
 
 ```python
 from pathlib import Path
@@ -320,12 +363,14 @@ ruff format .
 MIT License - see [LICENSE](LICENSE) for details.
 
 Icon packs are distributed under their respective licenses:
-- Ionicons: MIT
-- Heroicons: MIT
-- Material Symbols: Apache 2.0
-- Tabler Icons: MIT
-- Lucide: ISC
-- Font Awesome Free: CC BY 4.0 (icons) / MIT (code)
+- [Ionicons](https://ionicons.com): MIT License
+- [Heroicons](https://heroicons.com): MIT License
+- [Material Symbols](https://fonts.google.com/icons): [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- [Tabler Icons](https://tabler.io/icons): MIT License
+- [Lucide](https://lucide.dev): ISC License
+- [Font Awesome Free](https://fontawesome.com): CC BY 4.0 (icons) / MIT (code)
+
+**Note:** This project includes Material Icons by Google, licensed under the Apache License, Version 2.0.
 
 ## Credits
 

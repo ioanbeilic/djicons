@@ -4,6 +4,16 @@ from pathlib import Path
 
 from django.apps import AppConfig
 
+# Mapping from pack names to namespaces
+PACK_NAMESPACES = {
+    "ionicons": "ion",
+    "heroicons": "hero",
+    "material": "material",
+    "tabler": "tabler",
+    "lucide": "lucide",
+    "fontawesome": "fa",
+}
+
 
 class DjiconsConfig(AppConfig):
     """Django app configuration for djicons."""
@@ -17,12 +27,22 @@ class DjiconsConfig(AppConfig):
         from .conf import get_setting
         from .registry import icons
 
+        mode = get_setting("MODE")
+
         # Register custom icon directories from settings (highest priority)
         self._register_icon_dirs()
 
-        # Auto-discover and register icon packs
+        # Auto-discover and register icon packs based on mode
         if get_setting("AUTO_DISCOVER"):
-            self._register_packs()
+            if mode == "cdn":
+                self._register_cdn_loaders()
+            else:
+                # Check for collected icons first, then fall back to packs
+                collect_dir = get_setting("COLLECT_DIR")
+                if collect_dir and Path(collect_dir).exists():
+                    self._register_collected_icons(collect_dir)
+                else:
+                    self._register_packs()
 
         # Register aliases from settings
         aliases = get_setting("ALIASES")
@@ -43,8 +63,40 @@ class DjiconsConfig(AppConfig):
                 loader = DirectoryIconLoader(icon_path)
                 icons.register_loader(loader, namespace=namespace)
 
+    def _register_cdn_loaders(self) -> None:
+        """Register CDN loaders for all configured packs."""
+        from .conf import get_setting
+        from .loaders import CDNIconLoader
+        from .registry import icons
+
+        packs = get_setting("PACKS")
+
+        for pack_name in packs:
+            namespace = PACK_NAMESPACES.get(pack_name)
+            if namespace:
+                try:
+                    loader = CDNIconLoader(namespace=namespace)
+                    icons.register_loader(loader, namespace=namespace)
+                except ValueError:
+                    # No CDN template for this pack
+                    pass
+
+    def _register_collected_icons(self, collect_dir: str | Path) -> None:
+        """Register collected icons from COLLECT_DIR."""
+        from .loaders import DirectoryIconLoader
+        from .registry import icons
+
+        collect_path = Path(collect_dir)
+
+        # Each namespace has its own subdirectory
+        for namespace_dir in collect_path.iterdir():
+            if namespace_dir.is_dir():
+                namespace = namespace_dir.name
+                loader = DirectoryIconLoader(namespace_dir)
+                icons.register_loader(loader, namespace=namespace)
+
     def _register_packs(self) -> None:
-        """Register configured icon packs."""
+        """Register configured icon packs (local mode with downloaded icons)."""
         from .conf import get_setting
         from .registry import icons
 

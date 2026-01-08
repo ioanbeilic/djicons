@@ -52,8 +52,8 @@ PACKS = {
     "material": {
         "name": "Material Symbols",
         "version": "latest",
-        "url": "https://github.com/AviDuda/google-material-icons/archive/refs/heads/main.zip",
-        "svg_path": "google-material-icons-main/icons/svg/outlined",
+        "url": "https://github.com/google/material-design-icons/archive/refs/heads/master.zip",
+        "svg_pattern": "material-design-icons-master/symbols/web/*/materialsymbolsoutlined/*_24px.svg",
         "transform": "material",
     },
     "tabler": {
@@ -95,7 +95,11 @@ def transform_heroicons(name: str, style: str) -> str:
 
 
 def transform_material(name: str, style: str = "") -> str:
-    """Transform Material Icons filename (underscores to dashes)."""
+    """Transform Material Icons filename (remove _24px suffix, underscores to dashes)."""
+    # Remove size suffix like _24px, _20px, etc.
+    import re
+
+    name = re.sub(r"_\d+px$", "", name)
     return name.replace("_", "-")
 
 
@@ -131,6 +135,13 @@ async def download_file(client: httpx.AsyncClient, url: str, dest: Path) -> None
     print(f"  Downloaded {len(response.content) / 1024 / 1024:.1f} MB")
 
 
+def match_pattern(name: str, pattern: str) -> bool:
+    """Match a path against a pattern with wildcards."""
+    import fnmatch
+
+    return fnmatch.fnmatch(name, pattern)
+
+
 def extract_svgs(
     zip_path: Path,
     pack_name: str,
@@ -142,8 +153,25 @@ def extract_svgs(
     transform_fn = TRANSFORMS.get(config.get("transform"))
 
     with zipfile.ZipFile(zip_path, "r") as zf:
+        # Handle pattern matching (like material with nested folders)
+        if "svg_pattern" in config:
+            pattern = config["svg_pattern"]
+            for name in zf.namelist():
+                if match_pattern(name, pattern):
+                    # Read SVG content
+                    svg_content = zf.read(name).decode("utf-8")
+
+                    # Get filename (remove _24px suffix for material)
+                    filename = Path(name).stem
+                    if transform_fn:
+                        filename = transform_fn(filename, "")
+
+                    # Write to output
+                    output_file = output_dir / f"{filename}.svg"
+                    output_file.write_text(svg_content)
+                    count += 1
         # Handle multiple paths (like heroicons with outline/solid/mini)
-        if "svg_paths" in config:
+        elif "svg_paths" in config:
             for svg_path, style in config["svg_paths"]:
                 for name in zf.namelist():
                     if name.startswith(svg_path) and name.endswith(".svg"):

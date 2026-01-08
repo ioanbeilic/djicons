@@ -6,6 +6,10 @@ from django.conf import settings
 
 # Default settings
 DEFAULTS: dict[str, Any] = {
+    # Mode: 'cdn' (development) or 'local' (production)
+    # - cdn: Fetch icons from CDN on demand (no download needed)
+    # - local: Use locally downloaded icons (offline, faster)
+    "MODE": "cdn",
     # Default namespace for unqualified icon names
     "DEFAULT_NAMESPACE": "ion",
     # Auto-discover and register installed packs
@@ -22,9 +26,11 @@ DEFAULTS: dict[str, Any] = {
     "DEFAULT_SIZE": None,
     # Default CSS class to add to all icons
     "DEFAULT_CLASS": "",
+    # Default fill color (e.g., "currentColor" for CSS inheritance)
+    "DEFAULT_FILL": None,
     # Add aria-hidden="true" by default
     "ARIA_HIDDEN": True,
-    # Icon packs to auto-load
+    # Icon packs to auto-load (used in 'local' mode)
     "PACKS": [
         "ionicons",
         "heroicons",
@@ -38,6 +44,8 @@ DEFAULTS: dict[str, Any] = {
     "ICON_DIRS": {},
     # Aliases for common icons (alias -> "namespace:name")
     "ALIASES": {},
+    # Directory to store collected icons (for 'local' mode after djicons_collect)
+    "COLLECT_DIR": None,
 }
 
 

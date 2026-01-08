@@ -160,6 +160,13 @@ class Icon:
         style_parts = []
         if color:
             style_parts.append(f"color: {escape(color)}")
+
+        # Handle fill - use default if not specified
+        if not fill:
+            default_fill = get_setting("DEFAULT_FILL")
+            if default_fill:
+                fill = default_fill
+
         if fill:
             # Remove existing fill and add new one
             tag_attrs = self._FILL_PATTERN.sub("", tag_attrs)
