@@ -46,16 +46,12 @@ class Command(BaseCommand):
             default=10.0,
             help="HTTP timeout for downloading icons (default: 10 seconds)",
         )
-        parser.add_argument(
-            "--verbose",
-            "-v",
-            action="store_true",
-            help="Show detailed output",
-        )
+        # Note: Django's BaseCommand already provides --verbosity/-v,
+        # so we use that instead of a custom --verbose flag.
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
-        verbose = options["verbose"]
+        verbose = options["verbosity"] >= 2
         timeout = options["timeout"]
 
         # Determine output directory
