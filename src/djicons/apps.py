@@ -44,6 +44,9 @@ class DjiconsConfig(AppConfig):
                 else:
                     self._register_packs()
 
+                # Also register per-app icon directories (from djicons_collect --per-app)
+                self._register_app_icons()
+
         # Register aliases from settings
         aliases = get_setting("ALIASES")
         for alias, target in aliases.items():
@@ -94,6 +97,42 @@ class DjiconsConfig(AppConfig):
                 namespace = namespace_dir.name
                 loader = DirectoryIconLoader(namespace_dir)
                 icons.register_loader(loader, namespace=namespace)
+
+    def _register_app_icons(self) -> None:
+        """Register icons from each app's static/icons/{namespace}/ directories."""
+        from django.conf import settings as django_settings
+
+        from .loaders import DirectoryIconLoader
+        from .registry import icons
+
+        for app in django_settings.INSTALLED_APPS:
+            try:
+                module = __import__(app, fromlist=[""])
+                app_path = Path(module.__file__).parent
+                icons_dir = app_path / "static" / "icons"
+                if not icons_dir.exists():
+                    continue
+
+                for namespace_dir in icons_dir.iterdir():
+                    if namespace_dir.is_dir() and not namespace_dir.name.startswith("."):
+                        namespace = namespace_dir.name
+                        loader = DirectoryIconLoader(namespace_dir)
+                        icons.register_loader(loader, namespace=namespace)
+            except (ImportError, AttributeError):
+                pass
+
+        # Also check TEMPLATES DIRS for non-app template dirs (e.g., hub/templates)
+        templates_config = getattr(django_settings, "TEMPLATES", [])
+        for config in templates_config:
+            for dir_path in config.get("DIRS", []):
+                path = Path(dir_path)
+                if path.name == "templates" and (path.parent / "static" / "icons").exists():
+                    icons_dir = path.parent / "static" / "icons"
+                    for namespace_dir in icons_dir.iterdir():
+                        if namespace_dir.is_dir() and not namespace_dir.name.startswith("."):
+                            namespace = namespace_dir.name
+                            loader = DirectoryIconLoader(namespace_dir)
+                            icons.register_loader(loader, namespace=namespace)
 
     def _register_packs(self) -> None:
         """Register configured icon packs (local mode with downloaded icons)."""

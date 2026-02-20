@@ -106,6 +106,85 @@ def scan_templates() -> set[str]:
     return icons
 
 
+def get_app_paths() -> list[tuple[Path, Path]]:
+    """
+    Get all Django app paths paired with their template directories.
+
+    Returns:
+        List of (app_path, templates_path) tuples
+    """
+    app_entries: list[tuple[Path, Path]] = []
+    seen_templates: set[Path] = set()
+
+    templates_config = getattr(settings, "TEMPLATES", [])
+    for config in templates_config:
+        # DIRS entries — these are standalone template dirs (not app-bound)
+        # We include them mapped to themselves so they're still scanned
+        for dir_path in config.get("DIRS", []):
+            path = Path(dir_path).resolve()
+            if path.exists() and path not in seen_templates:
+                seen_templates.add(path)
+                # Try to find the app root: if this is an app's templates/ dir
+                if path.name == "templates" and (path.parent / "__init__.py").exists():
+                    app_entries.append((path.parent, path))
+                else:
+                    app_entries.append((path, path))
+
+        # APP_DIRS: each installed app's templates folder
+        if config.get("APP_DIRS", False):
+            for app in settings.INSTALLED_APPS:
+                try:
+                    module = __import__(app, fromlist=[""])
+                    app_path = Path(module.__file__).parent
+                    templates_path = (app_path / "templates").resolve()
+                    if templates_path.exists() and templates_path not in seen_templates:
+                        seen_templates.add(templates_path)
+                        app_entries.append((app_path, templates_path))
+                except (ImportError, AttributeError):
+                    pass
+
+    return app_entries
+
+
+def scan_templates_per_app(
+    default_namespace: str = "ion",
+) -> dict[Path, dict[str, set[str]]]:
+    """
+    Scan all Django templates and group icons per app.
+
+    Returns a mapping of app_path → {namespace: {icon_names}}.
+    Only apps that have a static/ directory (or can have one created)
+    are included with their own entry. Template dirs that don't belong
+    to an app are grouped under a special key.
+
+    Args:
+        default_namespace: Default namespace for unqualified icon names
+
+    Returns:
+        Dict mapping app_path to {namespace: set of icon names}
+    """
+    result: dict[Path, dict[str, set[str]]] = {}
+
+    for app_path, templates_path in get_app_paths():
+        icons = scan_directory(templates_path)
+        if not icons:
+            continue
+
+        grouped = group_icons_by_namespace(icons, default_namespace)
+
+        if app_path in result:
+            # Merge with existing entry
+            for ns, names in grouped.items():
+                if ns in result[app_path]:
+                    result[app_path][ns].update(names)
+                else:
+                    result[app_path][ns] = names
+        else:
+            result[app_path] = grouped
+
+    return result
+
+
 def parse_icon_name(name: str, default_namespace: str = "ion") -> tuple[str, str]:
     """
     Parse an icon name into namespace and name.
