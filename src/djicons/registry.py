@@ -65,7 +65,7 @@ class IconRegistry:
     def _initialize(self) -> None:
         """Initialize registry state."""
         self._icons: dict[str, dict[str, Icon]] = {}  # namespace -> {name: Icon}
-        self._loaders: dict[str, BaseIconLoader] = {}  # namespace -> loader
+        self._loaders: dict[str, list[BaseIconLoader]] = {}  # namespace -> loaders
         self._aliases: dict[str, str] = {}  # alias -> "namespace:name"
         self._default_namespace: str = ""
 
@@ -123,7 +123,10 @@ class IconRegistry:
             loader: Icon loader instance
             namespace: Namespace for the loader
         """
-        self._loaders[namespace] = loader
+        if namespace not in self._loaders:
+            self._loaders[namespace] = []
+        if loader not in self._loaders[namespace]:
+            self._loaders[namespace].append(loader)
 
     def register_alias(self, alias: str, target: str) -> None:
         """
@@ -181,12 +184,12 @@ class IconRegistry:
         if namespace in self._icons and name in self._icons[namespace]:
             return self._icons[namespace][name]
 
-        # Try lazy loading via loader
+        # Try lazy loading via loaders (first match wins)
         if namespace in self._loaders:
-            loader = self._loaders[namespace]
-            svg_content = loader.load(name)
-            if svg_content:
-                return self.register(name, svg_content, namespace)
+            for loader in self._loaders[namespace]:
+                svg_content = loader.load(name)
+                if svg_content:
+                    return self.register(name, svg_content, namespace)
 
         # Not found
         return None
