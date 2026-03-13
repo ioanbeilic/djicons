@@ -12,7 +12,7 @@ Multi-library SVG icon system for Django. Like [react-icons](https://react-icons
 - **SVG inline rendering**: Full CSS control, no font loading
 - **Namespace system**: `{% icon "ion:home" %}`, `{% icon "hero:pencil" %}`
 - **LRU caching**: Fast rendering with memory + optional Django cache
-- **Django 4.2+ & 5.x**: Fully compatible with modern Django
+- **Django 4.2 – 6.0**: Fully compatible with modern Django
 
 ## Installation
 
@@ -176,18 +176,23 @@ DJICONS = {
 The `djicons_collect` command scans your templates and downloads only the icons you use:
 
 ```bash
-# Scan templates and download used icons
+# Per-app mode (default): saves icons into each app's static/icons/ directory
 python manage.py djicons_collect
 
-# Specify custom output directory
-python manage.py djicons_collect --output ./static/icons
+# Central mode: saves all icons to a single directory
+python manage.py djicons_collect --central
+
+# Specify custom output directory (central mode)
+python manage.py djicons_collect --central --output ./static/icons
 
 # Preview what would be downloaded (dry run)
 python manage.py djicons_collect --dry-run
 
 # Verbose output
-python manage.py djicons_collect -v
+python manage.py djicons_collect -v2
 ```
+
+Per-app mode is ideal for modular projects — each app owns its icons and Django's staticfiles finders discover them automatically.
 
 ### Custom Icon Directories
 
