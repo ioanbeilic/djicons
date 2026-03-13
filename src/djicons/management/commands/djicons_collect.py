@@ -103,9 +103,9 @@ class Command(BaseCommand):
         timeout = options["timeout"]
         default_namespace = get_setting("DEFAULT_NAMESPACE") or "ion"
 
-        self.stdout.write(self.style.MIGRATE_HEADING(
-            "Scanning templates for icon usages (per-app mode)..."
-        ))
+        self.stdout.write(
+            self.style.MIGRATE_HEADING("Scanning templates for icon usages (per-app mode)...")
+        )
 
         per_app = scan_templates_per_app(default_namespace)
 
@@ -162,7 +162,9 @@ class Command(BaseCommand):
 
         # Summary
         self.stdout.write("")
-        self.stdout.write(self.style.SUCCESS(f"Downloaded: {total_downloaded} icons across {len(per_app)} apps"))
+        self.stdout.write(
+            self.style.SUCCESS(f"Downloaded: {total_downloaded} icons across {len(per_app)} apps")
+        )
         if total_failed:
             self.stdout.write(self.style.ERROR(f"Failed: {total_failed} icons"))
 
