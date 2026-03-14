@@ -124,8 +124,8 @@ def get_app_paths() -> list[tuple[Path, Path]]:
             path = Path(dir_path).resolve()
             if path.exists() and path not in seen_templates:
                 seen_templates.add(path)
-                # Try to find the app root: if this is an app's templates/ dir
-                if path.name == "templates" and (path.parent / "__init__.py").exists():
+                # Try to find the app/project root from the templates dir
+                if path.name == "templates":
                     app_entries.append((path.parent, path))
                 else:
                     app_entries.append((path, path))
