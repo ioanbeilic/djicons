@@ -47,6 +47,9 @@ class DjiconsConfig(AppConfig):
                 # Also register per-app icon directories (from djicons_collect --per-app)
                 self._register_app_icons()
 
+        # Register S3 loaders from settings
+        self._register_s3_loaders()
+
         # Register aliases from settings
         aliases = get_setting("ALIASES")
         for alias, target in aliases.items():
@@ -133,6 +136,31 @@ class DjiconsConfig(AppConfig):
                             namespace = namespace_dir.name
                             loader = DirectoryIconLoader(namespace_dir)
                             icons.register_loader(loader, namespace=namespace)
+
+    def _register_s3_loaders(self) -> None:
+        """Register S3 loaders from S3 setting."""
+        from .conf import get_setting
+        from .loaders.s3 import S3IconLoader
+        from .registry import icons
+
+        s3_config = get_setting("S3")
+        if not s3_config:
+            return
+
+        bucket = s3_config.get("bucket")
+        region = s3_config.get("region", "us-east-1")
+        aws_key = s3_config.get("aws_access_key_id")
+        aws_secret = s3_config.get("aws_secret_access_key")
+
+        for namespace, prefix in s3_config.get("namespaces", {}).items():
+            loader = S3IconLoader(
+                bucket=bucket,
+                prefix=prefix,
+                region=region,
+                aws_access_key_id=aws_key,
+                aws_secret_access_key=aws_secret,
+            )
+            icons.register_loader(loader, namespace=namespace)
 
     def _register_packs(self) -> None:
         """Register configured icon packs (local mode with downloaded icons)."""

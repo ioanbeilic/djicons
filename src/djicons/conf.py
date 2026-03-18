@@ -42,6 +42,10 @@ DEFAULTS: dict[str, Any] = {
     # Custom icon directories by namespace
     # Example: {"ion": "/path/to/ionicons/svg", "custom": "/app/static/icons"}
     "ICON_DIRS": {},
+    # S3 icon loader configuration (optional)
+    # Example: {"bucket": "my-bucket", "region": "eu-west-1",
+    #            "namespaces": {"material": "djicons/material/", "ion": "djicons/ion/"}}
+    "S3": None,
     # Aliases for common icons (alias -> "namespace:name")
     "ALIASES": {},
     # Directory to store collected icons (for 'local' mode after djicons_collect)
