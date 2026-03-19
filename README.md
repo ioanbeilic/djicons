@@ -11,6 +11,7 @@ Multi-library SVG icon system for Django. Like [react-icons](https://react-icons
 - **Smart collection for production**: Only download the icons you actually use
 - **SVG inline rendering**: Full CSS control, no font loading
 - **Namespace system**: `{% icon "ion:home" %}`, `{% icon "hero:pencil" %}`
+- **S3 loader**: Load icons from AWS S3 for shared icon libraries across projects
 - **LRU caching**: Fast rendering with memory + optional Django cache
 - **Django 4.2 – 6.0**: Fully compatible with modern Django
 
@@ -215,11 +216,45 @@ DJICONS = {
 
 Icons in `ICON_DIRS` take priority over bundled packs, so you can override specific icons.
 
+### S3 Icon Loader
+
+Load icons from an AWS S3 bucket — useful for sharing icon libraries across multiple Django projects without duplicating files.
+
+```python
+DJICONS = {
+    'S3': {
+        'bucket': 'my-bucket',
+        'region': 'eu-west-1',
+        'namespaces': {
+            'material': 'djicons/material/',
+            'ion': 'djicons/ion/',
+        },
+    },
+}
+```
+
+Credentials are resolved via boto3's standard chain (IAM role, env vars, `~/.aws/credentials`). Requires `boto3`:
+
+```bash
+pip install boto3
+```
+
+If boto3 is not installed, the S3 loader silently does nothing and falls back to other loaders.
+
+You can also use the loader programmatically:
+
+```python
+from djicons.loaders import S3IconLoader
+
+loader = S3IconLoader(bucket="my-bucket", prefix="djicons/custom/", region="eu-west-1")
+icons.register_loader(loader, namespace="custom")
+```
+
 ## Programmatic Usage
 
 ```python
 from djicons import icons, Icon, get, register
-from djicons.loaders import DirectoryIconLoader
+from djicons.loaders import DirectoryIconLoader, S3IconLoader
 
 # Get an icon
 icon = icons.get("ion:home")
