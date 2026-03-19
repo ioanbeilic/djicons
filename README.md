@@ -217,6 +217,9 @@ python manage.py djicons_collect --central --output ./static/icons
 # S3 mode: download from CDN and upload to S3
 python manage.py djicons_collect --s3
 
+# S3 mode: also upload icons from a local directory
+python manage.py djicons_collect --s3 --upload-dir ion:/path/to/ionicons/svg
+
 # Preview what would be downloaded (dry run)
 python manage.py djicons_collect --dry-run
 
@@ -224,7 +227,56 @@ python manage.py djicons_collect --dry-run
 python manage.py djicons_collect -v2
 ```
 
-Per-app mode is ideal for modular projects — each app owns its icons and Django's staticfiles finders discover them automatically.
+### Per-app mode (default)
+
+Ideal for modular projects — each app owns its icons and Django's staticfiles finders discover them automatically.
+
+When you run `djicons_collect` (without flags), it scans each app's templates, finds all `{% icon %}` usages, and downloads the SVGs into the app's own `static/icons/` directory:
+
+```
+myapp/
+├── templates/myapp/
+│   └── index.html          # {% icon "ion:home" %} {% icon "hero:pencil" %}
+└── static/
+    └── icons/
+        ├── ion/
+        │   └── home.svg     # downloaded automatically
+        └── hero/
+            └── pencil.svg   # downloaded automatically
+```
+
+This is the recommended workflow for **module/app developers**:
+
+1. **During development**: use `MODE: 'cdn'` — icons load from CDN, nothing saved to disk
+2. **Before publishing**: run `python manage.py djicons_collect` — downloads only the icons your module uses
+3. **In production**: `_register_app_icons()` discovers each app's `static/icons/` automatically — no CDN needed
+
+The module ships with its own icons, making it self-contained and offline-ready.
+
+### S3 mode
+
+For shared icon storage across multiple projects. Add `djicons_collect --s3` to your Docker entrypoint or deploy script — it runs alongside `collectstatic`:
+
+```dockerfile
+# In your entrypoint or CMD
+python manage.py migrate --noinput
+python manage.py djicons_collect --s3
+exec gunicorn ...
+```
+
+The command is **idempotent** — icons already in S3 are skipped. It also uploads any local directories configured in `ICON_DIRS`.
+
+The `--upload-dir` flag lets you upload additional local icon directories:
+
+```bash
+# Upload ionicons from a local path
+python manage.py djicons_collect --s3 --upload-dir ion:/path/to/ionicons/svg
+
+# Upload multiple directories
+python manage.py djicons_collect --s3 \
+    --upload-dir ion:/path/to/ionicons \
+    --upload-dir hero:/path/to/heroicons
+```
 
 ### Custom Icon Directories
 
