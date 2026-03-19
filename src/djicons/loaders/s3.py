@@ -89,7 +89,7 @@ class S3IconLoader(BaseIconLoader):
             names = []
             for page in paginator.paginate(Bucket=self.bucket, Prefix=self.prefix):
                 for obj in page.get("Contents", []):
-                    key = obj["Key"][len(self.prefix):]
+                    key = obj["Key"][len(self.prefix) :]
                     if key.endswith(".svg") and "/" not in key:
                         names.append(key[:-4])
             return names
