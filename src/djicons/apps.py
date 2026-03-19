@@ -34,7 +34,10 @@ class DjiconsConfig(AppConfig):
 
         # Auto-discover and register icon packs based on mode
         if get_setting("AUTO_DISCOVER"):
-            if mode == "cdn":
+            if mode == "s3":
+                # S3 mode: use S3 as the primary icon source
+                self._register_s3_loaders()
+            elif mode == "cdn":
                 self._register_cdn_loaders()
             else:
                 # Check for collected icons first, then fall back to packs
@@ -47,8 +50,9 @@ class DjiconsConfig(AppConfig):
                 # Also register per-app icon directories (from djicons_collect --per-app)
                 self._register_app_icons()
 
-        # Register S3 loaders from settings
-        self._register_s3_loaders()
+        # Register S3 loaders as additional source (for local/cdn modes with S3 config)
+        if mode != "s3":
+            self._register_s3_loaders()
 
         # Register aliases from settings
         aliases = get_setting("ALIASES")

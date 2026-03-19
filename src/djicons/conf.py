@@ -6,9 +6,10 @@ from django.conf import settings
 
 # Default settings
 DEFAULTS: dict[str, Any] = {
-    # Mode: 'cdn' (development) or 'local' (production)
+    # Mode: 'cdn' (development), 'local' (production), or 's3' (shared)
     # - cdn: Fetch icons from CDN on demand (no download needed)
     # - local: Use locally downloaded icons (offline, faster)
+    # - s3: Load icons from AWS S3 (shared across projects)
     "MODE": "cdn",
     # Default namespace for unqualified icon names
     "DEFAULT_NAMESPACE": "ion",

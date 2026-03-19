@@ -37,7 +37,7 @@ INSTALLED_APPS = [
 ### Development (default)
 Icons are fetched from CDN on demand. Zero setup, access to all ~177,000 icons.
 
-### Production
+### Production (local)
 Run `djicons_collect` to download only the icons used in your templates:
 
 ```bash
@@ -45,6 +45,13 @@ python manage.py djicons_collect
 ```
 
 This scans your templates, finds all `{% icon %}` usages, and downloads only those icons (~KBs instead of ~700MB).
+
+### Production (S3 — shared across projects)
+Collect icons and upload them to S3, then all your projects load icons from the same bucket:
+
+```bash
+python manage.py djicons_collect --s3
+```
 
 ## Quick Start
 
@@ -130,11 +137,32 @@ DJICONS = {
 }
 ```
 
+### Production (S3 mode — shared across projects)
+
+```python
+# settings.py - Production (S3)
+DJICONS = {
+    'MODE': 's3',
+    'S3': {
+        'bucket': 'my-bucket',
+        'region': 'eu-west-1',
+        'prefix': 'djicons/icons/',
+        'namespaces': {
+            'ion': 'djicons/icons/ion/',
+            'hero': 'djicons/icons/hero/',
+            'material': 'djicons/icons/material/',
+        },
+    },
+}
+```
+
+All projects sharing the same S3 bucket will use the same icons. You can also upload custom SVGs directly to S3 under the appropriate prefix.
+
 ### Full Configuration Options
 
 ```python
 DJICONS = {
-    # Mode: 'cdn' (development) or 'local' (production)
+    # Mode: 'cdn' (development), 'local' (production), or 's3' (shared)
     'MODE': 'cdn',
 
     # Default namespace for unqualified names
@@ -186,6 +214,9 @@ python manage.py djicons_collect --central
 # Specify custom output directory (central mode)
 python manage.py djicons_collect --central --output ./static/icons
 
+# S3 mode: download from CDN and upload to S3
+python manage.py djicons_collect --s3
+
 # Preview what would be downloaded (dry run)
 python manage.py djicons_collect --dry-run
 
@@ -218,20 +249,32 @@ Icons in `ICON_DIRS` take priority over bundled packs, so you can override speci
 
 ### S3 Icon Loader
 
-Load icons from an AWS S3 bucket — useful for sharing icon libraries across multiple Django projects without duplicating files.
+Share icons across multiple Django projects via a single S3 bucket. Three steps:
 
+**1. Collect and upload icons to S3:**
+```bash
+python manage.py djicons_collect --s3
+```
+
+**2. Configure all projects to load from S3:**
 ```python
 DJICONS = {
+    'MODE': 's3',
     'S3': {
         'bucket': 'my-bucket',
         'region': 'eu-west-1',
+        'prefix': 'djicons/icons/',
         'namespaces': {
-            'material': 'djicons/material/',
-            'ion': 'djicons/ion/',
+            'ion': 'djicons/icons/ion/',
+            'hero': 'djicons/icons/hero/',
         },
     },
 }
 ```
+
+**3. (Optional) Upload custom SVGs directly to S3:**
+
+You can also manually upload SVG files to `s3://my-bucket/djicons/icons/{namespace}/{name}.svg` and they will be available in all projects.
 
 Credentials are resolved via boto3's standard chain (IAM role, env vars, `~/.aws/credentials`). Requires `boto3`:
 
@@ -246,7 +289,7 @@ You can also use the loader programmatically:
 ```python
 from djicons.loaders import S3IconLoader
 
-loader = S3IconLoader(bucket="my-bucket", prefix="djicons/custom/", region="eu-west-1")
+loader = S3IconLoader(bucket="my-bucket", prefix="djicons/icons/custom/", region="eu-west-1")
 icons.register_loader(loader, namespace="custom")
 ```
 

@@ -4,13 +4,15 @@ Django management command to collect used icons.
 Scans all templates for icon usages and downloads only the
 icons that are actually used.
 
-Supports two modes:
+Supports three modes:
 - Per-app (default): saves icons into each app's static/icons/ directory
 - Central: saves all icons to a single output directory
+- S3: downloads icons from CDN and uploads them to S3
 
 Usage:
     python manage.py djicons_collect              # per-app (default)
     python manage.py djicons_collect --central    # central directory
+    python manage.py djicons_collect --s3         # upload to S3
     python manage.py djicons_collect --dry-run
 """
 
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Collect used icons from templates and download them locally"
+    help = "Collect used icons from templates and download them locally or to S3"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -49,6 +51,11 @@ class Command(BaseCommand):
             help="Save all icons to a single central directory instead of per-app",
         )
         parser.add_argument(
+            "--s3",
+            action="store_true",
+            help="Upload icons to S3 (uses DJICONS['S3'] config)",
+        )
+        parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Show what would be downloaded without actually downloading",
@@ -61,13 +68,34 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        if options["central"]:
+        if options["s3"]:
+            self._handle_s3(options)
+        elif options["central"]:
             self._handle_central(options)
         else:
             self._handle_per_app(options)
 
+    def _download_icon_content(self, name, namespace, timeout):
+        """Download icon SVG content from CDN. Returns (content, error_msg)."""
+        cdn_url = CDN_TEMPLATES.get(namespace)
+        if not cdn_url:
+            return None, None  # no CDN for this namespace
+
+        url = cdn_url.format(name=name)
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return response.read().decode("utf-8"), None
+        except HTTPError as e:
+            if e.code == 404:
+                return None, f"[NOT FOUND] {name}"
+            return None, f"[HTTP {e.code}] {name}"
+        except URLError as e:
+            return None, f"[NETWORK ERROR] {name}: {e.reason}"
+        except Exception as e:
+            return None, f"[ERROR] {name}: {e}"
+
     def _download_icon(self, name, namespace, dest_path, timeout, verbose):
-        """Download a single icon from CDN. Returns True on success."""
+        """Download a single icon from CDN to disk. Returns True on success."""
         cdn_url = CDN_TEMPLATES.get(namespace)
         if not cdn_url:
             return None  # no CDN for this namespace
@@ -77,24 +105,168 @@ class Command(BaseCommand):
                 self.stdout.write(f"    [EXISTS] {name}")
             return True
 
-        url = cdn_url.format(name=name)
-        try:
-            with urlopen(url, timeout=timeout) as response:
-                content = response.read().decode("utf-8")
-                dest_path.write_text(content)
-                if verbose:
-                    self.stdout.write(self.style.SUCCESS(f"    [OK] {name}"))
-                return True
-        except HTTPError as e:
-            if e.code == 404:
-                self.stdout.write(self.style.ERROR(f"    [NOT FOUND] {name}"))
-            else:
-                self.stdout.write(self.style.ERROR(f"    [HTTP {e.code}] {name}"))
-        except URLError as e:
-            self.stdout.write(self.style.ERROR(f"    [NETWORK ERROR] {name}: {e.reason}"))
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"    [ERROR] {name}: {e}"))
+        content, error = self._download_icon_content(name, namespace, timeout)
+        if content:
+            dest_path.write_text(content)
+            if verbose:
+                self.stdout.write(self.style.SUCCESS(f"    [OK] {name}"))
+            return True
+        if error:
+            self.stdout.write(self.style.ERROR(f"    {error}"))
         return False
+
+    def _handle_s3(self, options):
+        """Collect icons and upload them to S3."""
+        dry_run = options["dry_run"]
+        verbose = options["verbosity"] >= 2
+        timeout = options["timeout"]
+
+        s3_config = get_setting("S3")
+        if not s3_config:
+            self.stderr.write(
+                self.style.ERROR(
+                    'S3 not configured. Add DJICONS["S3"] to your settings:\n\n'
+                    "DJICONS = {\n"
+                    '    "S3": {\n'
+                    '        "bucket": "my-bucket",\n'
+                    '        "region": "eu-west-1",\n'
+                    '        "prefix": "djicons/icons/",\n'
+                    "    }\n"
+                    "}\n"
+                )
+            )
+            return
+
+        bucket = s3_config.get("bucket")
+        region = s3_config.get("region", "us-east-1")
+        prefix = s3_config.get("prefix", "djicons/icons/")
+        aws_key = s3_config.get("aws_access_key_id")
+        aws_secret = s3_config.get("aws_secret_access_key")
+
+        if not bucket:
+            self.stderr.write(self.style.ERROR('S3 "bucket" is required.'))
+            return
+
+        # Ensure prefix ends with /
+        if prefix and not prefix.endswith("/"):
+            prefix += "/"
+
+        self.stdout.write(self.style.MIGRATE_HEADING("Scanning templates for icon usages..."))
+
+        icons = scan_templates()
+
+        if not icons:
+            self.stdout.write(self.style.WARNING("No icons found in templates."))
+            return
+
+        default_namespace = get_setting("DEFAULT_NAMESPACE") or "ion"
+        grouped = group_icons_by_namespace(icons, default_namespace)
+
+        self.stdout.write(f"Found {len(icons)} unique icons in templates.")
+        self.stdout.write(f"Target: s3://{bucket}/{prefix}")
+
+        if dry_run:
+            self.stdout.write(self.style.WARNING("\nDry run - no icons uploaded."))
+            self.stdout.write("\nIcons that would be uploaded:")
+            for namespace, names in sorted(grouped.items()):
+                self.stdout.write(f"\n{namespace}:")
+                for name in sorted(names):
+                    self.stdout.write(f"  - {name} → {prefix}{namespace}/{name}.svg")
+            return
+
+        # Initialize S3 loader for uploads
+        from djicons.loaders.s3 import S3IconLoader
+
+        total_uploaded = 0
+        total_existed = 0
+        total_failed = 0
+
+        for namespace, names in sorted(grouped.items()):
+            cdn_url = CDN_TEMPLATES.get(namespace)
+            if not cdn_url:
+                if verbose:
+                    self.stdout.write(
+                        self.style.WARNING(f'  No CDN for "{namespace}", skipping...')
+                    )
+                continue
+
+            ns_prefix = f"{prefix}{namespace}"
+            loader = S3IconLoader(
+                bucket=bucket,
+                prefix=ns_prefix,
+                region=region,
+                aws_access_key_id=aws_key,
+                aws_secret_access_key=aws_secret,
+            )
+
+            if loader.client is None:
+                self.stderr.write(
+                    self.style.ERROR("boto3 is not installed. Run: pip install boto3")
+                )
+                return
+
+            # Check which icons already exist in S3
+            existing = set(loader.list())
+
+            self.stdout.write(f"\n{namespace}: {len(names)} icons → s3://{bucket}/{ns_prefix}/")
+
+            for name in sorted(names):
+                if name in existing:
+                    if verbose:
+                        self.stdout.write(f"    [EXISTS] {name}")
+                    total_existed += 1
+                    continue
+
+                content, error = self._download_icon_content(name, namespace, timeout)
+                if content:
+                    if loader.upload(name, content):
+                        if verbose:
+                            self.stdout.write(self.style.SUCCESS(f"    [OK] {name}"))
+                        total_uploaded += 1
+                    else:
+                        self.stdout.write(self.style.ERROR(f"    [S3 UPLOAD FAILED] {name}"))
+                        total_failed += 1
+                elif error:
+                    self.stdout.write(self.style.ERROR(f"    {error}"))
+                    total_failed += 1
+
+        # Summary
+        self.stdout.write("")
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Uploaded: {total_uploaded} icons | "
+                f"Already existed: {total_existed} | "
+                f"Failed: {total_failed}"
+            )
+        )
+
+        # Build namespaces config for the user
+        namespaces_config = {}
+        for namespace in sorted(grouped.keys()):
+            if CDN_TEMPLATES.get(namespace):
+                namespaces_config[namespace] = f"{prefix}{namespace}/"
+
+        self.stdout.write("")
+        self.stdout.write(self.style.MIGRATE_HEADING("Next steps:"))
+
+        ns_lines = "\n".join(f'            "{ns}": "{p}",' for ns, p in namespaces_config.items())
+        self.stdout.write(
+            f"""
+Configure djicons to load from S3:
+
+DJICONS = {{
+    "MODE": "s3",
+    "S3": {{
+        "bucket": "{bucket}",
+        "region": "{region}",
+        "prefix": "{prefix}",
+        "namespaces": {{
+{ns_lines}
+        }},
+    }},
+}}
+"""
+        )
 
     def _handle_per_app(self, options):
         """Collect icons into each app's static/icons/ directory."""

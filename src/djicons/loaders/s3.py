@@ -7,12 +7,14 @@ across multiple Django projects without duplicating files in each repo.
 Example usage in settings.py:
 
     DJICONS = {
+        "MODE": "s3",
         "S3": {
             "bucket": "my-bucket",
             "region": "eu-west-1",
+            "prefix": "djicons/icons/",
             "namespaces": {
-                "material": "djicons/material/",
-                "ion": "djicons/ion/",
+                "material": "djicons/icons/material/",
+                "ion": "djicons/icons/ion/",
             }
         }
     }
@@ -33,7 +35,7 @@ class S3IconLoader(BaseIconLoader):
 
     Args:
         bucket: S3 bucket name
-        prefix: Key prefix for this namespace (e.g. "djicons/material/")
+        prefix: Key prefix for this namespace (e.g. "djicons/icons/material/")
         region: AWS region (default: "us-east-1")
         aws_access_key_id: Optional explicit AWS key (default: boto3 chain)
         aws_secret_access_key: Optional explicit AWS secret (default: boto3 chain)
@@ -95,3 +97,19 @@ class S3IconLoader(BaseIconLoader):
             return names
         except Exception:
             return []
+
+    def upload(self, name: str, svg_content: str) -> bool:
+        """Upload a single SVG icon to S3. Returns True on success."""
+        if self.client is None:
+            return False
+        try:
+            key = f"{self.prefix}{name}.svg"
+            self.client.put_object(
+                Bucket=self.bucket,
+                Key=key,
+                Body=svg_content.encode("utf-8"),
+                ContentType="image/svg+xml",
+            )
+            return True
+        except Exception:
+            return False
