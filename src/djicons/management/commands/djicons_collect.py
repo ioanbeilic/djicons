@@ -56,6 +56,12 @@ class Command(BaseCommand):
             help="Upload icons to S3 (uses DJICONS['S3'] config)",
         )
         parser.add_argument(
+            "--upload-dir",
+            type=str,
+            action="append",
+            help="Upload all SVGs from a local directory to S3. Format: namespace:path (e.g. ion:/path/to/ionicons). Can be repeated.",
+        )
+        parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Show what would be downloaded without actually downloading",
@@ -120,6 +126,7 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         verbose = options["verbosity"] >= 2
         timeout = options["timeout"]
+        upload_dirs = options.get("upload_dir") or []
 
         s3_config = get_setting("S3")
         if not s3_config:
@@ -151,74 +158,85 @@ class Command(BaseCommand):
         if prefix and not prefix.endswith("/"):
             prefix += "/"
 
-        self.stdout.write(self.style.MIGRATE_HEADING("Scanning templates for icon usages..."))
-
-        icons = scan_templates()
-
-        if not icons:
-            self.stdout.write(self.style.WARNING("No icons found in templates."))
-            return
-
-        default_namespace = get_setting("DEFAULT_NAMESPACE") or "ion"
-        grouped = group_icons_by_namespace(icons, default_namespace)
-
-        self.stdout.write(f"Found {len(icons)} unique icons in templates.")
-        self.stdout.write(f"Target: s3://{bucket}/{prefix}")
-
-        if dry_run:
-            self.stdout.write(self.style.WARNING("\nDry run - no icons uploaded."))
-            self.stdout.write("\nIcons that would be uploaded:")
-            for namespace, names in sorted(grouped.items()):
-                self.stdout.write(f"\n{namespace}:")
-                for name in sorted(names):
-                    self.stdout.write(f"  - {name} → {prefix}{namespace}/{name}.svg")
-            return
-
-        # Initialize S3 loader for uploads
         from djicons.loaders.s3 import S3IconLoader
 
         total_uploaded = 0
         total_existed = 0
         total_failed = 0
 
-        for namespace, names in sorted(grouped.items()):
-            cdn_url = CDN_TEMPLATES.get(namespace)
-            if not cdn_url:
-                if verbose:
-                    self.stdout.write(
-                        self.style.WARNING(f'  No CDN for "{namespace}", skipping...')
-                    )
-                continue
-
-            ns_prefix = f"{prefix}{namespace}"
-            loader = S3IconLoader(
+        def _make_loader(namespace):
+            return S3IconLoader(
                 bucket=bucket,
-                prefix=ns_prefix,
+                prefix=f"{prefix}{namespace}",
                 region=region,
                 aws_access_key_id=aws_key,
                 aws_secret_access_key=aws_secret,
             )
 
-            if loader.client is None:
+        # --- Phase 1: Upload local directories (ICON_DIRS + --upload-dir) ---
+        local_dirs = {}
+
+        # From ICON_DIRS setting
+        icon_dirs = get_setting("ICON_DIRS") or {}
+        for namespace, path in icon_dirs.items():
+            dir_path = Path(path) if isinstance(path, str) else path
+            if dir_path.exists():
+                local_dirs[namespace] = dir_path
+
+        # From --upload-dir arguments (format: namespace:/path/to/dir)
+        for entry in upload_dirs:
+            if ":" not in entry:
                 self.stderr.write(
-                    self.style.ERROR("boto3 is not installed. Run: pip install boto3")
+                    self.style.ERROR(f'Invalid --upload-dir format: "{entry}". Use namespace:/path')
                 )
-                return
+                continue
+            ns, dir_str = entry.split(":", 1)
+            dir_path = Path(dir_str)
+            if not dir_path.exists():
+                self.stderr.write(self.style.ERROR(f"Directory not found: {dir_path}"))
+                continue
+            local_dirs[ns] = dir_path
 
-            # Check which icons already exist in S3
-            existing = set(loader.list())
+        if local_dirs:
+            self.stdout.write(
+                self.style.MIGRATE_HEADING("Uploading local icon directories to S3...")
+            )
+            self.stdout.write(f"Target: s3://{bucket}/{prefix}")
 
-            self.stdout.write(f"\n{namespace}: {len(names)} icons → s3://{bucket}/{ns_prefix}/")
-
-            for name in sorted(names):
-                if name in existing:
-                    if verbose:
-                        self.stdout.write(f"    [EXISTS] {name}")
-                    total_existed += 1
+            for namespace, dir_path in sorted(local_dirs.items()):
+                svgs = sorted(dir_path.glob("*.svg"))
+                if not svgs:
                     continue
 
-                content, error = self._download_icon_content(name, namespace, timeout)
-                if content:
+                loader = _make_loader(namespace)
+                if loader.client is None:
+                    self.stderr.write(
+                        self.style.ERROR("boto3 is not installed. Run: pip install boto3")
+                    )
+                    return
+
+                if not dry_run:
+                    existing = set(loader.list())
+                else:
+                    existing = set()
+
+                self.stdout.write(
+                    f"\n{namespace}: {len(svgs)} local SVGs → s3://{bucket}/{prefix}{namespace}/"
+                )
+
+                for svg_file in svgs:
+                    name = svg_file.stem
+                    if name in existing:
+                        if verbose:
+                            self.stdout.write(f"    [EXISTS] {name}")
+                        total_existed += 1
+                        continue
+
+                    if dry_run:
+                        self.stdout.write(f"    [DRY RUN] {name}")
+                        continue
+
+                    content = svg_file.read_text()
                     if loader.upload(name, content):
                         if verbose:
                             self.stdout.write(self.style.SUCCESS(f"    [OK] {name}"))
@@ -226,47 +244,81 @@ class Command(BaseCommand):
                     else:
                         self.stdout.write(self.style.ERROR(f"    [S3 UPLOAD FAILED] {name}"))
                         total_failed += 1
-                elif error:
-                    self.stdout.write(self.style.ERROR(f"    {error}"))
-                    total_failed += 1
+
+        # --- Phase 2: Scan templates and upload from CDN ---
+        self.stdout.write(self.style.MIGRATE_HEADING("\nScanning templates for icon usages..."))
+
+        icons = scan_templates()
+
+        if icons:
+            default_namespace = get_setting("DEFAULT_NAMESPACE") or "ion"
+            grouped = group_icons_by_namespace(icons, default_namespace)
+
+            self.stdout.write(f"Found {len(icons)} unique icons in templates.")
+
+            for namespace, names in sorted(grouped.items()):
+                cdn_url = CDN_TEMPLATES.get(namespace)
+                if not cdn_url:
+                    if verbose:
+                        self.stdout.write(
+                            self.style.WARNING(f'  No CDN for "{namespace}", skipping...')
+                        )
+                    continue
+
+                loader = _make_loader(namespace)
+                if loader.client is None:
+                    self.stderr.write(
+                        self.style.ERROR("boto3 is not installed. Run: pip install boto3")
+                    )
+                    return
+
+                if not dry_run:
+                    existing = set(loader.list())
+                else:
+                    existing = set()
+
+                self.stdout.write(
+                    f"\n{namespace}: {len(names)} template icons → s3://{bucket}/{prefix}{namespace}/"
+                )
+
+                for name in sorted(names):
+                    if name in existing:
+                        if verbose:
+                            self.stdout.write(f"    [EXISTS] {name}")
+                        total_existed += 1
+                        continue
+
+                    if dry_run:
+                        self.stdout.write(f"    [DRY RUN] {name}")
+                        continue
+
+                    content, error = self._download_icon_content(name, namespace, timeout)
+                    if content:
+                        if loader.upload(name, content):
+                            if verbose:
+                                self.stdout.write(self.style.SUCCESS(f"    [OK] {name}"))
+                            total_uploaded += 1
+                        else:
+                            self.stdout.write(self.style.ERROR(f"    [S3 UPLOAD FAILED] {name}"))
+                            total_failed += 1
+                    elif error:
+                        self.stdout.write(self.style.ERROR(f"    {error}"))
+                        total_failed += 1
+        else:
+            self.stdout.write(self.style.WARNING("No icons found in templates."))
 
         # Summary
         self.stdout.write("")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Uploaded: {total_uploaded} icons | "
-                f"Already existed: {total_existed} | "
-                f"Failed: {total_failed}"
+        if dry_run:
+            self.stdout.write(self.style.WARNING("Dry run — no icons were uploaded."))
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Uploaded: {total_uploaded} | "
+                    f"Already existed: {total_existed} | "
+                    f"Failed: {total_failed}"
+                )
             )
-        )
-
-        # Build namespaces config for the user
-        namespaces_config = {}
-        for namespace in sorted(grouped.keys()):
-            if CDN_TEMPLATES.get(namespace):
-                namespaces_config[namespace] = f"{prefix}{namespace}/"
-
-        self.stdout.write("")
-        self.stdout.write(self.style.MIGRATE_HEADING("Next steps:"))
-
-        ns_lines = "\n".join(f'            "{ns}": "{p}",' for ns, p in namespaces_config.items())
-        self.stdout.write(
-            f"""
-Configure djicons to load from S3:
-
-DJICONS = {{
-    "MODE": "s3",
-    "S3": {{
-        "bucket": "{bucket}",
-        "region": "{region}",
-        "prefix": "{prefix}",
-        "namespaces": {{
-{ns_lines}
-        }},
-    }},
-}}
-"""
-        )
 
     def _handle_per_app(self, options):
         """Collect icons into each app's static/icons/ directory."""
